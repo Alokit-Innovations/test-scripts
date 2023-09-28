@@ -29,7 +29,7 @@ webhook_url = 'https://968d-171-76-83-56.ngrok-free.app/api/bitbucket/callbacks/
 # Get the OAuth token
 def get_oauth_token(client_id, client_secret):
     url = "https://bitbucket.org/site/oauth2/access_token"
-    response = requests.post(url, auth=(oauth_consumer_key, oauth_consumer_secret), data={'grant_type': 'client_credentials'})
+    response = requests.post(url, auth=(client_id, client_secret), data={'grant_type': 'client_credentials'})
     response.raise_for_status()
     return response.json()
 
@@ -90,7 +90,7 @@ def store_repo_data(name, workspace, auth_info, provider,metadata, git_url):
         metadata = EXCLUDED.metadata,
         git_url = EXCLUDED.git_url
     """
-    params = (name, workspace, provider, auth_info)
+    params = (name, workspace, provider, auth_info, metadata, git_url)
     cur.execute(query, params)
     conn.commit()
     cur.close()
@@ -137,7 +137,7 @@ def main():
     
     store_repo_data(repo_name, workspace, json.dumps(auth_info), metadata, git_url)
     pr_info = raise_pr(workspace, repo_name, auth_info["access_token"])
-    simulate_webhook_event(webhook_url, pr_info)
+    simulate_webhook_event(webhook_url, pr_info, repo_info)
 
     if check_db_for_hunk_info(pr_info['id']):
         print("Hunk info is stored in the database.")
