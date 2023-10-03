@@ -11,7 +11,7 @@ from dotenv import load_dotenv
 load_dotenv()
 
 # set up logging
-logging.basicConfig(filename='gcscruncsql.log', level=logging.INFO)
+logging.basicConfig(filename='bitbucket_tests.log', level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 # Configuration for the script
