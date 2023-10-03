@@ -26,6 +26,23 @@ workspace = 'alokit-innovations-test'
 repo_name = 'on-prem-bitbucket-test-repo'
 webhook_url = 'https://968d-171-76-83-56.ngrok-free.app/api/bitbucket/callbacks/webhook'
 
+def create_db_connection(db_host, db_name, db_user, db_password):
+    """
+    Establish and return a connection to the database. 
+    """
+    try:
+        connection = psycopg2.connect(
+            host=db_host,
+            database=db_name,
+            user=db_user,
+            password=db_password
+        )
+        print("Successfully connected to the database.")
+        return connection
+    except psycopg2.DatabaseError as e:
+        print(f"Failed to connect to the database: {e}")
+        return None
+
 def get_oauth_token(client_id, client_secret):
     try:
         url = "https://bitbucket.org/site/oauth2/access_token"
@@ -95,10 +112,9 @@ def raise_pr(workspace, repo_name, token):
         print(f'Error raising PR: {e}')
         raise
 
-def store_repo_data(name, workspace, auth_info, provider, metadata, git_url):
+def store_repo_data(connection, name, workspace, auth_info, provider, metadata, git_url):
     try:
-        conn = psycopg2.connect(f"dbname={db_name} user={db_user} host={db_host} password={db_password} port={db_port}")
-        cur = conn.cursor()
+        cur = connection.cursor()
         query = """
             INSERT INTO repos (repo_name, repo_owner, repo_provider, auth_info, metadata, git_url) 
             VALUES (%s, %s, %s, %s, %s, %s)
@@ -109,12 +125,13 @@ def store_repo_data(name, workspace, auth_info, provider, metadata, git_url):
         """
         params = (name, workspace, provider, auth_info, metadata, git_url)
         cur.execute(query, params)
-        conn.commit()
-        cur.close()
-        conn.close()
+        connection.commit()
     except Exception as e:
         print(f'Error storing repo data: {e}')
         raise
+    finally:
+        if cur:
+            cur.close()
 
 def simulate_webhook_event(webhook_url, pr_info, repo_data):
     try:
@@ -128,19 +145,19 @@ def simulate_webhook_event(webhook_url, pr_info, repo_data):
         print(f'Error simulating webhook event: {e}')
         raise
 
-def check_db_for_hunk_info(pr_number, repo_name, repo_owner, provider):
+def check_db_for_hunk_info(connection, pr_number, repo_name, repo_owner, provider):
     try:
         time.sleep(180)
-        conn = psycopg2.connect(f"dbname={db_name} user={db_user} host={db_host} password={db_password} port={db_port}")
-        cur = conn.cursor()
+        cur = connection.cursor()
         cur.execute("SELECT hunk_info FROM hunks WHERE review_id=%s and repo_name=%s and repo_owner=%s and repo_provider=%s", (pr_number, repo_name, repo_owner, provider))
         row = cur.fetchone()
-        cur.close()
-        conn.close()
         return bool(row)
     except Exception as e:
         print(f'Error checking DB for hunk info: {e}')
         raise
+    finally:
+        if cur:
+            cur.close()
 
 def delete_repo(workspace, repo_name, token):
     try:
@@ -151,12 +168,17 @@ def delete_repo(workspace, repo_name, token):
     except requests.RequestException as e:
         print(f'Error deleting repository: {e}')
         raise
-    
+
 def main():
+    connection = create_db_connection(db_host, db_name, db_user, db_password)
+    if connection is None:
+        print("Exiting due to database connection failure.")
+        return
+    
     auth_info = get_oauth_token(oauth_consumer_key, oauth_consumer_secret)
     expires_at = datetime.datetime.utcnow() + datetime.timedelta(seconds=auth_info["expires_in"])
     expires_at_formatted = expires_at.strftime("%Y-%m-%dT%H:%M:%SZ") ## Change the `expires_in` field to `expires_at` format
-
+    
     auth_info = { "access_token": auth_info["access_token"],
 		"expires_at": expires_at_formatted,
 		"refresh_token": auth_info["refresh_token"],
@@ -167,14 +189,18 @@ def main():
     metadata = json.dumps({ "provider_repo_id": repo_info["uuid"]}),
     git_url = [repo_info["links"]["clone"][1]["href"]]
     
-    store_repo_data(repo_name, workspace, json.dumps(auth_info), metadata, git_url)
+    store_repo_data(connection, repo_name, workspace, json.dumps(auth_info), metadata, git_url)
     pr_info = raise_pr(workspace, repo_name, auth_info["access_token"])
     simulate_webhook_event(webhook_url, pr_info, repo_info)
 
-    if check_db_for_hunk_info(pr_info['id']):
+    if check_db_for_hunk_info(connection, pr_info['id'], repo_name, workspace, 'bitbucket'):
         print("Hunk info is stored in the database.")
 
     delete_repo(workspace, repo_name, auth_info["access_token"])
+
+    if connection:
+            connection.close()
+            print("Database connection closed.")
 
 if __name__ == "__main__":
     main()
