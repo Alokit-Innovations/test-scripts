@@ -1,3 +1,6 @@
 [submodule "team-monitor-website"]
 	path = team-monitor-website
 	url = https://github.com/Alokit-Innovations/team-monitor-website
+[submodule "chrome-extension"]
+	path = chrome-extension
+	url = https://github.com/Alokit-Innovations/chrome-extension
