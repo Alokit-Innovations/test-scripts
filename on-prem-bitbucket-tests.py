@@ -40,7 +40,7 @@ def create_db_connection(db_host, db_name, db_user, db_password):
         print("Successfully connected to the database.")
         return connection
     except psycopg2.DatabaseError as e:
-        print(f"Failed to connect to the database: {e}")
+        logger.error(f"Failed to connect to the database: {e}")
         return None
 
 def get_oauth_token(client_id, client_secret):
@@ -50,7 +50,7 @@ def get_oauth_token(client_id, client_secret):
         response.raise_for_status()
         return response.json()
     except requests.RequestException as e:
-        print(f'Error getting OAuth token: {e}')
+        logger.error(f'Error getting OAuth token: {e}')
         raise
 
 def create_repo(workspace, repo_name, token):
@@ -61,7 +61,7 @@ def create_repo(workspace, repo_name, token):
         response.raise_for_status()
         return response.json()
     except requests.RequestException as e:
-        print(f'Error creating repository: {e}')
+        logger.error(f'Error creating repository: {e}')
         raise
 
 def create_branch(workspace, repo_name, token, source_branch, destination_branch):
@@ -72,7 +72,7 @@ def create_branch(workspace, repo_name, token, source_branch, destination_branch
         response = requests.post(url, headers=headers, json=data)
         response.raise_for_status()
     except requests.RequestException as e:
-        print(f'Error creating branch: {e}')
+        logger.error(f'Error creating branch: {e}')
         raise
 
 def add_and_commit_change(workspace, repo_name, token, branch, filename, content):
@@ -85,7 +85,7 @@ def add_and_commit_change(workspace, repo_name, token, branch, filename, content
         response.raise_for_status()
         return response.json()
     except requests.RequestException as e:
-        print(f'Error adding and committing change: {e}')
+        logger.error(f'Error adding and committing change: {e}')
         raise
 
 def raise_pr(workspace, repo_name, token):
@@ -109,7 +109,7 @@ def raise_pr(workspace, repo_name, token):
         response.raise_for_status()
         return response.json()
     except requests.RequestException as e:
-        print(f'Error raising PR: {e}')
+        logger.error(f'Error raising PR: {e}')
         raise
 
 def store_repo_data(connection, name, workspace, auth_info, provider, metadata, git_url):
@@ -127,7 +127,7 @@ def store_repo_data(connection, name, workspace, auth_info, provider, metadata, 
         cur.execute(query, params)
         connection.commit()
     except Exception as e:
-        print(f'Error storing repo data: {e}')
+        logger.error(f'Error storing repo data: {e}')
         raise
     finally:
         if cur:
@@ -142,7 +142,7 @@ def simulate_webhook_event(webhook_url, pr_info, repo_data):
         response = requests.post(webhook_url, json=payload)
         response.raise_for_status()
     except requests.RequestException as e:
-        print(f'Error simulating webhook event: {e}')
+        logger.error(f'Error simulating webhook event: {e}')
         raise
 
 def check_db_for_hunk_info(connection, pr_number, repo_name, repo_owner, provider):
@@ -153,7 +153,7 @@ def check_db_for_hunk_info(connection, pr_number, repo_name, repo_owner, provide
         row = cur.fetchone()
         return bool(row)
     except Exception as e:
-        print(f'Error checking DB for hunk info: {e}')
+        logger.error(f'Error checking DB for hunk info: {e}')
         raise
     finally:
         if cur:
@@ -166,13 +166,13 @@ def delete_repo(workspace, repo_name, token):
         response = requests.delete(url, headers=headers)
         response.raise_for_status()
     except requests.RequestException as e:
-        print(f'Error deleting repository: {e}')
+        logger.error(f'Error deleting repository: {e}')
         raise
 
 def main():
     connection = create_db_connection(db_host, db_name, db_user, db_password)
     if connection is None:
-        print("Exiting due to database connection failure.")
+        logger.error("Exiting due to database connection failure.")
         return
     
     auth_info = get_oauth_token(oauth_consumer_key, oauth_consumer_secret)
