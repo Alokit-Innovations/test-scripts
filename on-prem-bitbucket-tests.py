@@ -170,37 +170,40 @@ def delete_repo(workspace, repo_name, token):
         raise
 
 def main():
-    connection = create_db_connection(db_host, db_name, db_user, db_password)
-    if connection is None:
-        logger.error("Exiting due to database connection failure.")
-        return
-    
-    auth_info = get_oauth_token(oauth_consumer_key, oauth_consumer_secret)
-    expires_at = datetime.datetime.utcnow() + datetime.timedelta(seconds=auth_info["expires_in"])
-    expires_at_formatted = expires_at.strftime("%Y-%m-%dT%H:%M:%SZ") ## Change the `expires_in` field to `expires_at` format
-    
-    auth_info = { "access_token": auth_info["access_token"],
-		"expires_at": expires_at_formatted,
-		"refresh_token": auth_info["refresh_token"],
-        "worspace_slug": ['alokit_innovations_test']}
-    
-    repo_info = create_repo(workspace, repo_name, auth_info["access_token"])
-    
-    metadata = json.dumps({ "provider_repo_id": repo_info["uuid"]}),
-    git_url = [repo_info["links"]["clone"][1]["href"]]
-    
-    store_repo_data(connection, repo_name, workspace, json.dumps(auth_info), metadata, git_url)
-    pr_info = raise_pr(workspace, repo_name, auth_info["access_token"])
-    simulate_webhook_event(webhook_url, pr_info, repo_info)
+    try:
+        connection = create_db_connection(db_host, db_name, db_user, db_password)
+        if connection is None:
+            logger.error("Exiting due to database connection failure.")
+            return
+        
+        auth_info = get_oauth_token(oauth_consumer_key, oauth_consumer_secret)
+        expires_at = datetime.datetime.utcnow() + datetime.timedelta(seconds=auth_info["expires_in"])
+        expires_at_formatted = expires_at.strftime("%Y-%m-%dT%H:%M:%SZ") ## Change the `expires_in` field to `expires_at` format
+        
+        auth_info = { "access_token": auth_info["access_token"],
+            "expires_at": expires_at_formatted,
+            "refresh_token": auth_info["refresh_token"],
+            "worspace_slug": ['alokit_innovations_test']}
+        
+        repo_info = create_repo(workspace, repo_name, auth_info["access_token"])
+        
+        metadata = json.dumps({ "provider_repo_id": repo_info["uuid"]}),
+        git_url = [repo_info["links"]["clone"][1]["href"]]
+        
+        store_repo_data(connection, repo_name, workspace, json.dumps(auth_info), metadata, git_url)
+        pr_info = raise_pr(workspace, repo_name, auth_info["access_token"])
+        simulate_webhook_event(webhook_url, pr_info, repo_info)
 
-    if check_db_for_hunk_info(connection, pr_info['id'], repo_name, workspace, 'bitbucket'):
-        print("Hunk info is stored in the database.")
+        if check_db_for_hunk_info(connection, pr_info['id'], repo_name, workspace, 'bitbucket'):
+            print("Hunk info is stored in the database.")
 
-    delete_repo(workspace, repo_name, auth_info["access_token"])
-
-    if connection:
+        delete_repo(workspace, repo_name, auth_info["access_token"])
+    except Exception as e:
+        logger.error(f"An error occurred: {e}")
+        if connection:
             connection.close()
-            print("Database connection closed.")
+            logger.info("Database connection closed due to an error.")
+        return
 
 if __name__ == "__main__":
     main()
